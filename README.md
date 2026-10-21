@@ -1,66 +1,76 @@
-# 💰 Subscry - Rastreador de Assinaturas (MVP)
+# Subscry
 
-Controle inteligente de assinaturas recorrentes
+![Expo](https://img.shields.io/badge/Expo-54-000020?logo=expo&logoColor=white) ![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB?logo=react&logoColor=black) ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white) ![Jest](https://img.shields.io/badge/Jest-testes-C21325?logo=jest&logoColor=white)
 
-Subscry é um aplicativo móvel desenvolvido com Expo + TypeScript para gerenciar assinaturas e dividir custos entre participantes. O projeto é mobile-first e compatível com Web.
+App mobile para controlar assinaturas (streaming, nuvem, apps) e **dividir o custo entre as pessoas que usam cada uma**, sem perder centavo na conta.
 
-Badges
+Nasceu de um problema real: dividir Netflix, Spotify e companhia com família e amigos e nunca saber quem deve quanto, nem quando cada uma renova. Fiz como projeto da faculdade (ADS, FATEC Praia Grande).
 
-![Expo](https://img.shields.io/badge/Expo-54.0-blue) ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue) ![Status](https://img.shields.io/badge/Status-MVP-success)
+<p align="center">
+  <img src="docs/dashboard.png" alt="Dashboard do Subscry" width="30%">
+  &nbsp;&nbsp;
+  <img src="docs/formulario.png" alt="Cadastro de assinatura" width="30%">
+</p>
 
-O que é o Subscry?
+## O que o app faz
 
-Subscry permite registrar assinaturas, calcular próximos vencimentos e dividir valores entre participantes com precisão de centavos. O app foca em simplicidade e uso offline.
+- Cadastra, edita e remove assinaturas, com presets dos serviços mais comuns (Netflix, Spotify, Prime, Google One…)
+- Calcula o **próximo vencimento** de cada assinatura a partir da data de início e da frequência
+- Mostra no dashboard o total mensal e a estimativa anual
+- Divide o valor entre participantes e soma **quanto cada pessoa deve** no total
+- Exporta e importa os dados em JSON (backup simples, sem servidor)
 
-Funcionalidades Principais
+## Decisões técnicas que valem explicar
 
-- ✅ **CRUD de assinaturas:** criar, editar, visualizar e excluir com facilidade
-- 📊 **Dashboard intuitivo:** totais agregados e visual do próximo vencimento
-- 🧮 **Cálculo preciso (centavos):** divisão determinística por pessoa, sem perda de centavos
-- 👥 **Participantes persistidos:** autocomplete e agregação por pessoa (salva localmente)
-- 🔁 **Migrações idempotentes:** converte participantes embutidos para registros persistidos sem duplicar
-- 💾 **Export / Import (JSON):** backup e restauração simples
+**Dinheiro em centavos, nunca em float.** `0.1 + 0.2` em JavaScript dá `0.30000000000000004`. Todo valor é guardado como inteiro em centavos, e a formatação para R$ só acontece na tela.
 
-Observação: a interface atual expõe frequências mensais e anuais; outras frequências não são apresentadas diretamente no formulário.
+**Divisão sem perder centavo.** R$ 10,00 dividido por 3 não fecha em 3,33 × 3. O algoritmo dá a cada pessoa a parte base (`floor(total / n)`) e distribui o resto, um centavo por vez, seguindo a ordem alfabética dos nomes. A soma das partes sempre bate exatamente com o total, e a divisão sai igual toda vez que você abre o app.
 
-Como rodar
-
-```pwsh
-npm install
-npx expo install
-npx expo start
+```ts
+const base = Math.floor(totalCents / recipients.length);
+let remainder = totalCents - base * recipients.length;
+// ordena por nome; cada um recebe `base`, e os primeiros recebem +1 até o resto zerar
 ```
 
-Arquitetura e decisões técnicas
+**Migração de dados idempotente.** Na primeira versão, os participantes ficavam embutidos dentro de cada assinatura. Quando passei a tratá-los como entidade própria (para somar o que cada pessoa deve), escrevi uma migração que roda na inicialização e pode rodar quantas vezes for preciso sem duplicar ninguém. Os nomes são normalizados (`trim` + `lowercase`) para "Ana" e "ana " virarem a mesma pessoa.
 
-- Modularidade por responsabilidades: `screens`, `components`, `db`, `utils`, `data`.
-- Persistência file-backed JSON (`src/db/index.ts`) para compatibilidade Web; adaptadores nativos podem ser usados em runtime nativo.
-- Valores monetários são armazenados em centavos (inteiros) para evitar imprecisões.
-- Nomes de participantes são normalizados (trim + lowercase) para matching.
+**Cálculo de vencimento testado.** A regra de "próxima data de cobrança" tem casos chatos (data de início no futuro, data de término, frequências diferentes). Por isso ela é uma função pura em `src/utils/dateUtils.ts`, coberta por testes com Jest.
 
-Estrutura de pastas (resumo)
+## O que aprendi
 
-- `App.tsx`, `index.ts`: ponto de entrada; inicialização e migrações.
-- `src/screens/SubscriptionForm.tsx`: formulário com autocomplete de participantes, presets e seleção de ícone.
-- `src/screens/SubscriptionsList.tsx`, `src/screens/Dashboard.tsx`: listas e visão geral.
-- `src/screens/Participants.tsx`: gerenciamento de participantes persistidos.
-- `src/db/participantsDao.ts`: CRUD de participantes e associações (inclui `setParticipantAsMe`).
-- `src/db/subscriptionsDao.ts`: CRUD de assinaturas, cálculo de `next_due` e agregações.
-- `src/utils/dateUtils.ts`: utilitários de data e cálculo de próximos vencimentos.
+- Modelar dinheiro de verdade: inteiros, arredondamento e distribuição de resto
+- Evoluir o formato dos dados de um app que já tem dados salvos, sem quebrar o que existia
+- Separar regra de negócio (utils/db) da interface (screens) para conseguir testar sem renderizar tela
+- Navegação em stack, contexto de tema e formulários mais complexos em React Native
 
-Testes
+## Estrutura
 
-- Testes com Jest em `__tests__/`. Execute `npm test`.
+```
+App.tsx                  inicialização, migrações e navegação
+src/
+  screens/               Dashboard, lista, formulário, participantes, configurações
+  db/                    persistência local (assinaturas e participantes)
+  utils/dateUtils.ts     cálculo de vencimentos (função pura, testada)
+  data/                  presets de serviços e ícones
+__tests__/               testes com Jest
+```
 
-Contribuição
+## Rodando
 
-- Branch por feature → Pull Request → revisão → merge em `main`.
-- Rode `npx tsc --noEmit` antes de abrir PRs.
+```bash
+npm install --legacy-peer-deps
+npx expo start        # abra no Expo Go (Android/iOS)
+npm test              # testes
+```
 
-Contato
+> A persistência usa o sistema de arquivos do dispositivo (`expo-file-system`). No navegador a interface abre, mas os dados não são salvos: o alvo do app é Android/iOS.
 
-- Abra uma issue no repositório para reportar bugs ou sugerir melhorias.
+## Próximos passos
+
+- Lembrete por notificação alguns dias antes do vencimento
+- Expor as frequências semanal e personalizada no formulário (a lógica já existe)
+- Histórico de pagamentos por participante
 
 ---
 
-<!-- Nota: versão limpa do README. -->
+Feito por **Lucas Leite Gonzales** · [LinkedIn](https://www.linkedin.com/in/lucas-leite-gonzales-dev/)
